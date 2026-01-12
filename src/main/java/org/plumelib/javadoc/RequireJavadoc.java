@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeKind;
 import javax.tools.Diagnostic;
+import org.checkerframework.checker.modifiability.qual.Modifiable;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -151,10 +152,10 @@ public final class RequireJavadoc {
   }
 
   /** All the errors this program will report. */
-  private List<String> errors = new ArrayList<>();
+  private @Modifiable List<String> errors = new ArrayList<>();
 
   /** The Java files to be checked. */
-  private List<Path> javaFiles = new ArrayList<>();
+  private @Modifiable List<Path> javaFiles = new ArrayList<>();
 
   /** The current working directory, for making relative pathnames. */
   private Path workingDirRelative = Paths.get("");
