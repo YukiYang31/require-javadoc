@@ -699,7 +699,7 @@ public final class RequireJavadoc {
     private JCTree.JCCompilationUnit cu;
 
     /** The name of the class being visited (and others that contain it). */
-    private Deque<String> classNames = new ArrayDeque<>();
+    private @Modifiable Deque<String> classNames = new ArrayDeque<>();
 
     /**
      * Create a new RequireJavadocVisitor.
