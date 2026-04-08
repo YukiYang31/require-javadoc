@@ -7,7 +7,6 @@ import com.sun.tools.javac.tree.DocCommentTable;
 import com.sun.tools.javac.tree.JCTree;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
@@ -63,8 +62,8 @@ public final class RequireJavadoc {
 
   /**
    * If true, don't check constructors with zero formal parameters. These are sometimes called
-   * "default constructors", though that term means a no-argument constructor that the compiler
-   * synthesized when the programmer didn't write any constructor.
+   * "default constructors", though that term actually means a no-argument constructor that the
+   * compiler synthesized when the programmer didn't write any constructor.
    */
   @Option("Don't report problems in constructors with zero formal parameters")
   public boolean dont_require_noarg_constructor;
@@ -129,27 +128,6 @@ public final class RequireJavadoc {
   /** If true, output debug information. */
   @Option("Print diagnostic information")
   public boolean verbose = false;
-
-  /** Tree.Kind.RECORD, or OTHER if running under Java 15 or earlier. */
-  private static final Tree.Kind RECORD;
-
-  static {
-    if (Runtime.version().feature() >= 16) {
-      try {
-        Field recordField = Tree.Kind.class.getDeclaredField("RECORD");
-        @SuppressWarnings("nullness:argument") // pass null because it's a static field
-        Tree.Kind recordFieldValue = (Tree.Kind) recordField.get(null);
-        if (recordFieldValue == null) {
-          throw new Error("Field RECORD is nill Tree.Kind");
-        }
-        RECORD = recordFieldValue;
-      } catch (NoSuchFieldException | IllegalAccessException e) {
-        throw new Error("Cannot find field RECORD in Tree.Kind", e);
-      }
-    } else {
-      RECORD = Tree.Kind.OTHER;
-    }
-  }
 
   /** All the errors this program will report. */
   private @Modifiable List<String> errors = new ArrayList<>();
@@ -266,8 +244,7 @@ public final class RequireJavadoc {
       for (Path javaFile : javaFiles) {
         @SuppressWarnings("nullness:assignment") // the file is not "/", so getParent() is non-null
         @NonNull Path javaFileParent = javaFile.getParent();
-        // Java 11 has Path.of() instead of creating a new File.
-        Path packageInfo = javaFileParent.resolve(new File("package-info.java").toPath());
+        Path packageInfo = javaFileParent.resolve(Path.of("package-info.java"));
         if (!javaFiles.contains(packageInfo)) {
           missingPackageInfoFiles.add(packageInfo);
         }
@@ -468,12 +445,8 @@ public final class RequireJavadoc {
    */
   private boolean isTrivialGetterOrSetter(JCTree.JCMethodDecl md) {
     PropertyKind kind = PropertyKind.fromMethodDeclaration(md);
-    if (kind != PropertyKind.GETTER_NO_PREFIX) {
-      if (isTrivialGetterOrSetter(md, kind)) {
-        return true;
-      }
-    }
-    return isTrivialGetterOrSetter(md, PropertyKind.GETTER_NO_PREFIX);
+    return (kind != PropertyKind.GETTER_NO_PREFIX && isTrivialGetterOrSetter(md, kind))
+        || isTrivialGetterOrSetter(md, PropertyKind.GETTER_NO_PREFIX);
   }
 
   /**
@@ -507,7 +480,7 @@ public final class RequireJavadoc {
     assert methodName.startsWith(propertyKind.prefix);
     @SuppressWarnings("index") // https://github.com/typetools/checker-framework/issues/5201
     String upperCamelCaseProperty = methodName.substring(propertyKind.prefix.length());
-    if (upperCamelCaseProperty.length() == 0) {
+    if (upperCamelCaseProperty.isEmpty()) {
       return null;
     }
     if (propertyKind == PropertyKind.GETTER_NO_PREFIX) {
@@ -543,16 +516,11 @@ public final class RequireJavadoc {
     // Check presence/absence of return type. (The Java compiler will verify
     // that the type is consistent with the method body.)
     JCTree returnType = md.getReturnType();
-    switch (propertyKind.returnType) {
-      case VOID:
-        return isTypeWithKind(returnType, TypeKind.VOID);
-      case BOOLEAN:
-        return isTypeWithKind(returnType, TypeKind.BOOLEAN);
-      case NON_VOID:
-        return !isTypeWithKind(returnType, TypeKind.VOID);
-      default:
-        throw new Error("Unexpected enum value " + propertyKind.returnType);
-    }
+    return switch (propertyKind.returnType) {
+      case VOID -> isTypeWithKind(returnType, TypeKind.VOID);
+      case BOOLEAN -> isTypeWithKind(returnType, TypeKind.BOOLEAN);
+      case NON_VOID -> !isTypeWithKind(returnType, TypeKind.VOID);
+    };
   }
 
   /**
@@ -563,8 +531,8 @@ public final class RequireJavadoc {
    * @return true if the tree is a type of the given kind
    */
   private boolean isTypeWithKind(JCTree tree, TypeKind typeKind) {
-    return tree instanceof JCTree.JCPrimitiveTypeTree
-        && typeKind == ((JCTree.JCPrimitiveTypeTree) tree).getPrimitiveTypeKind();
+    return tree instanceof JCTree.JCPrimitiveTypeTree jcptt
+        && typeKind == jcptt.getPrimitiveTypeKind();
   }
 
   /**
@@ -582,20 +550,19 @@ public final class RequireJavadoc {
       return false;
     }
     if (propertyKind.isGetter()) {
-      if (!(statement instanceof JCTree.JCReturn)) {
+      if (!(statement instanceof JCTree.JCReturn jcr)) {
         return false;
       }
-      JCTree.JCExpression returnExpr = ((JCTree.JCReturn) statement).getExpression();
+      JCTree.JCExpression returnExpr = jcr.getExpression();
       if (returnExpr == null) {
         return false;
       }
 
       returnExpr = removeParentheses(returnExpr);
       if (propertyKind == PropertyKind.GETTER_NOT) {
-        if (!(returnExpr instanceof JCTree.JCUnary)) {
+        if (!(returnExpr instanceof JCTree.JCUnary unary)) {
           return false;
         }
-        JCTree.JCUnary unary = (JCTree.JCUnary) returnExpr;
         if (unary.getTag() != JCTree.Tag.NOT) {
           return false;
         }
@@ -604,26 +571,22 @@ public final class RequireJavadoc {
       String returnName = asFieldName(returnExpr);
       return returnName != null && returnName.equals(propertyName);
     } else if (propertyKind == PropertyKind.SETTER) {
-      if (!(statement instanceof JCTree.JCExpressionStatement)) {
+      if (!(statement instanceof JCTree.JCExpressionStatement jces)) {
         return false;
       }
-      JCTree.JCExpression expr = ((JCTree.JCExpressionStatement) statement).getExpression();
+      JCTree.JCExpression expr = jces.getExpression();
       expr = removeParentheses(expr);
-      if (!(expr instanceof JCTree.JCAssign)) {
+      if (!(expr instanceof JCTree.JCAssign assignExpr)) {
         return false;
       }
-      JCTree.JCAssign assignExpr = (JCTree.JCAssign) expr;
       JCTree.JCExpression assignLhs = assignExpr.getVariable();
       String lhsName = asFieldName(assignLhs);
       if (lhsName == null || !lhsName.equals(propertyName)) {
         return false;
       }
       JCTree.JCExpression assignRhs = removeParentheses(assignExpr.getExpression());
-      if (!(assignRhs instanceof JCTree.JCIdent
-          && ((JCTree.JCIdent) assignRhs).getName().toString().equals(propertyName))) {
-        return false;
-      }
-      return true;
+      return assignRhs instanceof JCTree.JCIdent jci
+          && jci.getName().toString().equals(propertyName);
     } else {
       throw new Error("unexpected PropertyKind " + propertyKind);
     }
@@ -636,8 +599,8 @@ public final class RequireJavadoc {
    * @return the expression with all enclosing parentheses removed
    */
   private JCTree.JCExpression removeParentheses(JCTree.JCExpression expr) {
-    while (expr instanceof JCTree.JCParens) {
-      expr = ((JCTree.JCParens) expr).getExpression();
+    while (expr instanceof JCTree.JCParens parens) {
+      expr = parens.getExpression();
     }
     return expr;
   }
@@ -650,16 +613,14 @@ public final class RequireJavadoc {
    */
   private @Nullable String asFieldName(JCTree.JCExpression expr) {
     expr = removeParentheses(expr);
-    if (expr instanceof JCTree.JCIdent) {
-      return ((JCTree.JCIdent) expr).getName().toString();
-    } else if (expr instanceof JCTree.JCFieldAccess) {
-      JCTree.JCFieldAccess fa = (JCTree.JCFieldAccess) expr;
+    if (expr instanceof JCTree.JCIdent ident) {
+      return ident.getName().toString();
+    } else if (expr instanceof JCTree.JCFieldAccess fa) {
       // Can expr be a field access with null expression and identifier "this"?
       // Or can this case just be omitted?
       JCTree.JCExpression receiver = removeParentheses(fa.getExpression());
       if (!(receiver == null
-          || (receiver instanceof JCTree.JCIdent
-              && ((JCTree.JCIdent) receiver).getName().toString().equals("this")))) {
+          || (receiver instanceof JCTree.JCIdent jci && jci.getName().toString().equals("this")))) {
         return null;
       }
       return fa.getIdentifier().toString();
@@ -786,7 +747,7 @@ public final class RequireJavadoc {
         errors.add(errorString(cd, name));
       }
 
-      if (cd.getKind() == RECORD) {
+      if (cd.getKind() == Tree.Kind.RECORD) {
         // Don't warn about record parameters, because Javadoc requires @param for them in the
         // record declaration itself.
       } else {
@@ -812,6 +773,9 @@ public final class RequireJavadoc {
 
       @NonNull String name = md.getName().toString();
       if (name.equals("<init>")) {
+        if (dont_require_noarg_constructor && md.getParameters().isEmpty()) {
+          return;
+        }
         @SuppressWarnings("nullness:assignment") // the stack is not empty
         @NonNull String tmpName = classNames.peekFirst();
         name = tmpName;
