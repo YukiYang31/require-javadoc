@@ -1,8 +1,8 @@
 [plugins]
 
-com-diffplug-spotless = { id = "com.diffplug.spotless", version = "8.4.0" }
+com-diffplug-spotless = { id = "com.diffplug.spotless", version = "8.6.0" }
 
-com-gradleup-shadow = { id = "com.gradleup.shadow", version = "9.4.1" }
+com-gradleup-shadow = { id = "com.gradleup.shadow", version = "9.4.2" }
 
 com-vanniktech-maven-publish = { id = "com.vanniktech.maven.publish", version = "0.36.0" }
 
@@ -12,7 +12,7 @@ org-checkerframework = { id = "org.checkerframework", version = "1.0.2" }
 
 [versions]
 
-checker-framework = "3.55.1"
+checker-framework = "4.2.0"
 
 [libraries]
 
@@ -20,11 +20,9 @@ checker-framework = { module = "org.checkerframework:checker", version.ref = "ch
 
 checker-qual = { module = "org.checkerframework:checker-qual", version.ref = "checker-framework" }
 
-error-prone-core = "com.google.errorprone:error_prone_core:2.48.0"
+error-prone-core = "com.google.errorprone:error_prone_core:2.49.0"
 
 javac-parse = "org.plumelib:javac-parse:0.9.0"
-
-javaparser-core = "com.github.javaparser:javaparser-core:3.28.0"
 
 options = "org.plumelib:options:2.0.3"
 

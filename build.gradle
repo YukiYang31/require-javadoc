@@ -33,7 +33,6 @@ repositories {
 }
 
 dependencies {
-  implementation(libs.javaparser.core)
   implementation(libs.javac.parse)
   implementation(libs.options)
 }
@@ -130,7 +129,7 @@ tasks.withType(JavaCompile).configureEach {
 // PMD linter
 
 pmd {
-  toolVersion = "7.23.0"
+  toolVersion = "7.25.0"
   ruleSetFiles = files("${rootDir}/.pmd-ruleset.xml")
   consoleOutput = true
   ignoreFailures = false
